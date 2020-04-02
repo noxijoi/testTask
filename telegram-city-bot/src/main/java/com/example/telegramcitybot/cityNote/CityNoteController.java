@@ -27,6 +27,13 @@ public class CityNoteController {
         throw new ResourceNotFoundException("No note " + id);
     }
 
+    @GetMapping("/city/{id}")
+    public List<CityNote> getCityNotes(@PathVariable Long id){
+        List<CityNote> notes = cityNoteRepository.findAllByCityId(id);
+        return notes;
+    }
+
+
     @PostMapping
     public CityNote createCityNote(@RequestBody CityNote cityNote) {
         return cityNoteRepository.save(cityNote);

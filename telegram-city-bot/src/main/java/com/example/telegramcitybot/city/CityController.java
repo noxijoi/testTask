@@ -27,6 +27,7 @@ public class CityController {
         throw new ResourceNotFoundException();
     }
 
+
     @PostMapping
     public City createCity(@RequestBody City city) {
         return cityRepository.save(city);
