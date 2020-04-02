@@ -1,0 +1,5 @@
+
+app:
+  service-url : http://localhost:8080
+  botName: CityNotesBot
+  botToken: 1269551334:AAFG7K9j7C6EgudDjbM5J9u0VnQweb3Aw4E
