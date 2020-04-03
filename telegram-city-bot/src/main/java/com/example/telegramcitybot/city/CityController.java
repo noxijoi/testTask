@@ -63,8 +63,9 @@ public class CityController {
     public CityDto updateCity(@PathVariable Long id, @RequestBody City city) {
         Optional<City> optionalOld = cityRepository.findById(id);
         if (optionalOld.isPresent()) {
-            city.setId(id);
-            City updated =  cityRepository.save(city);
+            City old = optionalOld.get();
+            old.setName(city.getName());
+            City updated =  cityRepository.save(old);
             return mapper.map(updated, CityDto.class);
         }
         throw new ResourceNotFoundException();

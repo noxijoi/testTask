@@ -38,8 +38,9 @@ public class CityNoteController {
     public NoteDto updateCityNote(@PathVariable Long id, @RequestBody CityNote cityNote) {
         Optional<CityNote> optionalOld = cityNoteRepository.findById(id);
         if (optionalOld.isPresent()) {
-            cityNote.setId(id);
-            CityNote updated =  cityNoteRepository.save(cityNote);
+            CityNote note = optionalOld.get();
+            note.setNote(cityNote.getNote());
+            CityNote updated =  cityNoteRepository.save(note);
             return mapper.map(updated, NoteDto.class);
         }
         throw new ResourceNotFoundException();
