@@ -3,7 +3,6 @@ package com.example.bot;
 import com.example.bot.models.City;
 import com.example.bot.models.CityNote;
 import lombok.extern.slf4j.Slf4j;
-import org.checkerframework.checker.units.qual.A;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -73,18 +72,57 @@ public class Bot extends TelegramLongPollingBot {
             List<MessageEntity> entities = message.getEntities();
             dispatchCommands(entities, update);
         }
-        if (message.hasText()){
+        if (message.hasText()) {
             String text = message.getText();
             Integer userId = message.getFrom().getId();
             Action lastAction = usersLastAction.get(userId);
             CallbackAction userAction = lastAction.getCallbackAction();
-            switch (userAction){
-                case CREATE_NOTE:
+            SendMessage sendMessage = new SendMessage();
+            sendMessage.setChatId(message.getChatId());
+            switch (userAction) {
+                case CREATE_NOTE: {
                     CityNote note = new CityNote();
-                    note.setCityId(lastAction.getConnectedId());
-                case CREATE_CITY:
-                case UPDATE_CITY:
+                    City city = new City();
+                    city.setId(lastAction.getConnectedId());
+                    note.setCity(city);
+                    note.setNote(text);
+                    CityNote created = cityNoteService.createNote(note);
+                    sendMessage.setText("Note #" + created.getId() + "\n" + created.getNote());
+                    sendMessage.setReplyMarkup(builtNoteKeyboard(created));
+                    break;
+                }
+                case CREATE_CITY: {
+                    City city = new City();
+                    city.setName(text);
+                    cityService.createCity(city);
+                    List<City> cities = cityService.getCities();
+                    sendMessage.setText("Choose city");
+                    sendMessage.setReplyMarkup(buildCitiesKeyboard(cities));
+                    break;
+                }
+                case UPDATE_CITY: {
+                    City city = new City();
+                    city.setName(text);
+                    cityService.updateCity(city);
+                    List<City> cities = cityService.getCities();
+                    sendMessage.setText("Choose city");
+                    sendMessage.setReplyMarkup(buildCitiesKeyboard(cities));
+                    break;
+                }
                 case UPDATE_NOTE:
+                    CityNote note = new CityNote();
+                    note.setId(lastAction.getConnectedId());
+                    note.setNote(text);
+                    cityNoteService.updateNote(note);
+                    CityNote updated = cityNoteService.getCityNote(lastAction.getConnectedId());
+                    sendMessage.setText("Note #" + updated.getId() + "\n" + updated.getNote());
+                    sendMessage.setReplyMarkup(builtNoteKeyboard(updated));
+                    break;
+            }
+            try {
+                execute(sendMessage);
+            } catch (TelegramApiException e) {
+                log.error(e.getMessage());
             }
         }
     }
@@ -102,7 +140,8 @@ public class Bot extends TelegramLongPollingBot {
                             execute(sendMessage);
                             break;
                         case START_COMMAND:
-                            buildCitiesKeyboard(sendMessage);
+                            List<City> cities = cityService.getCities();
+                            sendMessage.setReplyMarkup(buildCitiesKeyboard(cities));
                             sendMessage.setText("Choose city");
                             execute(sendMessage);
                             break;
@@ -116,7 +155,6 @@ public class Bot extends TelegramLongPollingBot {
                 log.error(e.getMessage());
             }
         });
-        //TODO
     }
 
     private void dispatchCallBackQuery(CallbackQuery callbackQuery, Update update) {
@@ -124,47 +162,73 @@ public class Bot extends TelegramLongPollingBot {
         CallbackAction callbackAction = getCallBackAction(callbackData);
         String data = getCallbackDataValue(callbackData);
         SendMessage sendMessage = new SendMessage();
+        sendMessage.setChatId(callbackQuery.getMessage().getChatId());
         Action action = new Action();
         try {
             switch (callbackAction) {
                 case GET_CITY_NOTES:
-                    List<CityNote> cityNotes = cityNoteService.getCityNotes(Long.getLong(data));
-                    buildCityNotesKeyboard(sendMessage, cityNotes);
+                    Long cityId = Long.parseLong(data);
+                    List<CityNote> cityNotes = cityNoteService.getCityNotes(cityId);
+                    sendMessage.setReplyMarkup(buildCityNotesKeyboard(cityNotes, cityId));
+                    sendMessage.setText("Notes:");
+                    execute(sendMessage);
+                    usersLastAction.remove(callbackQuery.getFrom().getId());
+                    break;
+                case GET_CITIES:
+                    List<City> cities = cityService.getCities();
+                    sendMessage.setReplyMarkup(buildCitiesKeyboard(cities));
+                    sendMessage.setText("Choose city");
                     execute(sendMessage);
                     break;
                 case GET_NOTE:
-                    CityNote note = cityNoteService.getCityNote(Long.getLong(data));
-                    sendMessage.setText(note.getNote());
-                    builtNoteKeyboard(note);
+                    CityNote note = cityNoteService.getCityNote(Long.parseLong(data));
+                    sendMessage.setText("Note #" + note.getId() + "\n" + note.getNote());
+                    sendMessage.setReplyMarkup(builtNoteKeyboard(note));
                     execute(sendMessage);
+                    usersLastAction.remove(callbackQuery.getFrom().getId());
                     break;
                 case CREATE_CITY:
                     sendMessage.setText("Enter city name");
                     execute(sendMessage);
                     action.setCallbackAction(CallbackAction.CREATE_CITY);
-                    usersLastAction.put(callbackQuery.getFrom().getId(), action );
+                    usersLastAction.put(callbackQuery.getFrom().getId(), action);
                     break;
                 case CREATE_NOTE:
                     sendMessage.setText("Enter note text");
                     execute(sendMessage);
                     action.setCallbackAction(CallbackAction.CREATE_NOTE);
-                    action.setConnectedId(Long.getLong(callbackQuery.getData()));
+                    action.setConnectedId(Long.parseLong(data));
                     usersLastAction.put(callbackQuery.getFrom().getId(), action);
                     break;
                 case UPDATE_CITY:
                     sendMessage.setText("Enter updated name");
                     execute(sendMessage);
                     action.setCallbackAction(CallbackAction.UPDATE_CITY);
-                    action.setConnectedId(Long.getLong(callbackQuery.getData()));
+                    action.setConnectedId(Long.parseLong(data));
                     usersLastAction.put(callbackQuery.getFrom().getId(), action);
                     break;
                 case UPDATE_NOTE:
                     sendMessage.setText("Enter updated note text");
                     execute(sendMessage);
                     action.setCallbackAction(CallbackAction.UPDATE_NOTE);
-                    action.setConnectedId(Long.getLong(callbackQuery.getData()));
+                    action.setConnectedId(Long.parseLong(data));
                     usersLastAction.put(callbackQuery.getFrom().getId(), action);
                     break;
+                case DELETE_CITY:
+                    cityService.deleteCity(Long.parseLong(data));
+                    List<City> citiesList = cityService.getCities();
+                    sendMessage.setReplyMarkup(buildCitiesKeyboard(citiesList));
+                    sendMessage.setText("Choose city");
+                    execute(sendMessage);
+                    usersLastAction.remove(callbackQuery.getFrom().getId());
+                    break;
+                case DELETE_NOTE:
+                    cityNoteService.deleteNote(Long.parseLong(data));
+                    sendMessage.setText("Deleted");
+                    execute(sendMessage);
+                    usersLastAction.remove(callbackQuery.getFrom().getId());
+                    break;
+
             }
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
@@ -175,22 +239,27 @@ public class Bot extends TelegramLongPollingBot {
         InlineKeyboardMarkup keyboardMarkup = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         List<InlineKeyboardButton> row = new ArrayList<>();
+
+        InlineKeyboardButton toCitiesBtn = new InlineKeyboardButton();
+        toCitiesBtn.setCallbackData(CallbackAction.GET_CITIES.name()).setText("Back to cities");
+        row.add(toCitiesBtn);
+
         InlineKeyboardButton deleteBtn = new InlineKeyboardButton();
-        deleteBtn.setCallbackData(CallbackAction.DELETE_NOTE.name()).setText("Delete");
+        deleteBtn.setCallbackData(CallbackAction.DELETE_NOTE.name() + " " + note.getId().toString()).setText("Delete");
         row.add(deleteBtn);
-        InlineKeyboardButton UpdateBtn = new InlineKeyboardButton();
-        UpdateBtn.setCallbackData(CallbackAction.UPDATE_NOTE.name()).setText("Update");
-        row.add(UpdateBtn);
+
+        InlineKeyboardButton updateBtn = new InlineKeyboardButton();
+        updateBtn.setCallbackData(CallbackAction.UPDATE_NOTE.name() + " " + note.getId().toString()).setText("Update");
+        row.add(updateBtn);
+
         rows.add(row);
 
         keyboardMarkup.setKeyboard(rows);
         return keyboardMarkup;
     }
 
-    private InlineKeyboardMarkup buildCitiesKeyboard(SendMessage sendMessage) {
+    private InlineKeyboardMarkup buildCitiesKeyboard(List<City> cities) {
         InlineKeyboardMarkup keyboardMarkup = new InlineKeyboardMarkup();
-        sendMessage.setReplyMarkup(keyboardMarkup);
-        List<City> cities = cityService.getCities();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         cities.forEach(city -> {
             List<InlineKeyboardButton> row = new ArrayList<>();
@@ -210,9 +279,8 @@ public class Bot extends TelegramLongPollingBot {
         return keyboardMarkup;
     }
 
-    private InlineKeyboardMarkup buildCityNotesKeyboard(SendMessage sendMessage, List<CityNote> notes) {
+    private InlineKeyboardMarkup buildCityNotesKeyboard(List<CityNote> notes, Long cityId) {
         InlineKeyboardMarkup keyboardMarkup = new InlineKeyboardMarkup();
-        sendMessage.setReplyMarkup(keyboardMarkup);
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
         for (int i = 0; i < notes.size(); i++) {
             List<InlineKeyboardButton> row = new ArrayList<>();
@@ -224,8 +292,9 @@ public class Bot extends TelegramLongPollingBot {
         }
         List<InlineKeyboardButton> row = new ArrayList<>();
         InlineKeyboardButton newNoteBtn = new InlineKeyboardButton();
-        newNoteBtn.setText("New note").setCallbackData(CallbackAction.CREATE_NOTE.name());
+        newNoteBtn.setText("New note").setCallbackData(CallbackAction.CREATE_NOTE.name() + " " + cityId.toString());
         row.add(newNoteBtn);
+        rows.add(row);
         keyboardMarkup.setKeyboard(rows);
         return keyboardMarkup;
     }
@@ -235,17 +304,17 @@ public class Bot extends TelegramLongPollingBot {
         int spacePosition = callBackData.indexOf(" ");
         String actionStr = callBackData;
         if (spacePosition > 0) {
-             actionStr = callBackData.substring(0, spacePosition);
+            actionStr = callBackData.substring(0, spacePosition);
         }
         return CallbackAction.valueOf(actionStr);
     }
 
     private String getCallbackDataValue(String callbackData) {
         int spacePosition = callbackData.indexOf(" ");
-        if(spacePosition < 0) {
-            return  "";
+        if (spacePosition < 0) {
+            return "";
         }
-        return callbackData.substring(spacePosition);
+        return callbackData.substring(spacePosition + 1);
     }
 
 }

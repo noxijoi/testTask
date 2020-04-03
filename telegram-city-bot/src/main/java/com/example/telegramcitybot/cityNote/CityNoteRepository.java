@@ -7,5 +7,7 @@ import java.util.List;
 
 @Repository
 public interface CityNoteRepository extends JpaRepository<CityNote, Long> {
-    List<CityNote> findAllByCityId(Long cityId);
+    List<CityNote> getByCityId(Long cityId);
+
+    List<CityNote> findByCityId(Long id);
 }

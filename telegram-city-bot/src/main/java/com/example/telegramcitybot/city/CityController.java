@@ -1,11 +1,16 @@
 package com.example.telegramcitybot.city;
 
+import com.example.telegramcitybot.cityNote.CityNote;
+import com.example.telegramcitybot.cityNote.CityNoteRepository;
+import com.example.telegramcitybot.cityNote.NoteDto;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.rest.webmvc.ResourceNotFoundException;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("api/cities")
@@ -14,31 +19,53 @@ public class CityController {
     @Autowired
     private CityRepository cityRepository;
 
+    @Autowired
+    private CityNoteRepository cityNoteRepository;
+
+    private ModelMapper mapper = new ModelMapper();
+
     @GetMapping
-    public List<City> getCities() {
-        return cityRepository.findAll();
+    public List<CityDto> getCities() {
+        List<City> cities =  cityRepository.findAll();
+        return cities.stream()
+                .map(city ->mapper.map(city, CityDto.class))
+                .collect(Collectors.toList());
     }
 
     @GetMapping("{id}")
-    public City getCity(@PathVariable Long id) {
-        Optional<City> optionalCityNote = cityRepository.findById(id);
-        if (optionalCityNote.isPresent())
-            return optionalCityNote.get();
+    public CityDto getCity(@PathVariable Long id) {
+        Optional<City> optionalCity = cityRepository.findById(id);
+        if (optionalCity.isPresent()) {
+            City city = optionalCity.get();
+            return mapper.map(city, CityDto.class);
+        }
         throw new ResourceNotFoundException();
+    }
+
+    @GetMapping("{id}/notes")
+    public List<NoteDto> getNotesForCity(@PathVariable Long id) {
+        List<CityNote> notes = cityNoteRepository.findByCityId(id);
+        ModelMapper modelMapper = new ModelMapper();
+        List<NoteDto> dtos = notes.stream()
+                .map(note -> modelMapper.map(note, NoteDto.class))
+                .collect(Collectors.toList());
+        return dtos;
     }
 
 
     @PostMapping
-    public City createCity(@RequestBody City city) {
-        return cityRepository.save(city);
+    public CityDto createCity(@RequestBody City city) {
+        City created =  cityRepository.save(city);
+        return mapper.map(created, CityDto.class);
     }
 
     @PutMapping("{id}")
-    public City updateCity(@PathVariable Long id, @RequestBody City city) {
+    public CityDto updateCity(@PathVariable Long id, @RequestBody City city) {
         Optional<City> optionalOld = cityRepository.findById(id);
         if (optionalOld.isPresent()) {
             city.setId(id);
-            return cityRepository.save(city);
+            City updated =  cityRepository.save(city);
+            return mapper.map(updated, CityDto.class);
         }
         throw new ResourceNotFoundException();
     }

@@ -30,4 +30,22 @@ public class CityNoteService {
         return note;
     }
 
+    public CityNote createNote(CityNote note) {
+        RestTemplate template = new RestTemplate();
+        String path = serviceUrl + notesPath;
+        CityNote created = template.postForObject(path, note, CityNote.class);
+        return created;
+    }
+
+    public void updateNote(CityNote note) {
+        RestTemplate template = new RestTemplate();
+        String path = serviceUrl + notesPath + '/' + note.getId().toString();
+        template.put(path, note);
+    }
+
+    public void deleteNote(Long id){
+        RestTemplate restTemplate = new RestTemplate();
+        String path = serviceUrl + notesPath + '/' + id.toString();
+        restTemplate.delete(path);
+    }
 }

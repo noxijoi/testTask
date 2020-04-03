@@ -6,5 +6,5 @@ import lombok.Data;
 public class CityNote {
     private Long id;
     private String note;
-    private Long cityId;
+    private City city;
 }
