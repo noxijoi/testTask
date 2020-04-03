@@ -75,6 +75,7 @@ public class CityController {
         Optional<City> optionalOld = cityRepository.findById(id);
         if (optionalOld.isPresent()) {
             cityRepository.deleteById(id);
+            return;
         }
         throw new ResourceNotFoundException();
     }
